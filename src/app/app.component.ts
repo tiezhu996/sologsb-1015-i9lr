@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, HostListener, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
@@ -14,6 +14,7 @@ import { NzTabsModule } from 'ng-zorro-antd/tabs';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { METER_TEMPLATES, PoetryStoreService } from './services/poetry-store.service';
+import type { PoemIssue } from './models/poem.models';
 
 @Component({
   selector: 'app-root',
@@ -41,6 +42,7 @@ export class AppComponent {
   readonly store = inject(PoetryStoreService);
   readonly templates = METER_TEMPLATES;
   readonly selectedCell = computed(() => this.store.selectedCell());
+  readonly activeTab = signal(0);
 
   get totalErrors(): number {
     return this.store.issues().filter((issue) => issue.level === 'error').length;
@@ -58,6 +60,12 @@ export class AppComponent {
 
   setTone(tone: '平' | '仄' | '中' | '?'): void {
     this.store.setMark({ tone });
+  }
+
+  locateIssue(issue: PoemIssue): void {
+    if (issue.line === undefined) return;
+    this.store.selectCell(issue.line, issue.position ?? 0);
+    this.activeTab.set(0);
   }
 
   updateSource(source: string): void {

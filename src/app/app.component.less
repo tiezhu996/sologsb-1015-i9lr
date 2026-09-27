@@ -179,6 +179,8 @@ kbd { display: inline-grid; min-width: 21px; height: 21px; padding: 0 5px; place
   cursor: pointer;
 }
 .issue-row:hover { filter: brightness(.98); }
+.issue-row:not(.is-locatable) { cursor: default; }
+.issue-row.is-locatable:hover em { text-decoration: underline; }
 .issue-row.level-error { color: #883932; background: #fbefed; }
 .issue-row.level-warning { color: #7b581d; background: #fbf5e7; }
 .issue-row.level-info { color: #2f6656; background: #eff7f3; }

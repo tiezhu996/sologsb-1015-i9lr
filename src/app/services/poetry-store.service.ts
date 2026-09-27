@@ -10,6 +10,7 @@ import type {
   PoemIssue,
   PoemVersion,
   PoemWorkspace,
+  RhymeFoot,
   Tone,
 } from '../models/poem.models';
 
@@ -193,10 +194,21 @@ export class PoetryStoreService {
     });
   });
 
+  readonly rhymeFeet = computed<RhymeFoot[]>(() => {
+    const analysis = this.analysis();
+    const template = this.template();
+    return template.rhymeLines
+      .map((lineIndex) => {
+        const cell = analysis[lineIndex]?.cells.at(-1);
+        if (!cell) return undefined;
+        return { line: lineIndex, position: cell.position, char: cell.char, rhyme: cell.mark.rhyme.trim() };
+      })
+      .filter((foot): foot is RhymeFoot => Boolean(foot));
+  });
+
   readonly issues = computed<PoemIssue[]>(() => {
     const analysis = this.analysis();
     const version = this.activeVersion();
-    const template = this.template();
     const issues: PoemIssue[] = [];
     analysis.forEach((line) => {
       line.cells.filter((cell) => cell.status === 'error').forEach((cell) => {
@@ -213,18 +225,60 @@ export class PoetryStoreService {
         issues.push({ id: uid('issue'), level: 'warning', title: '存在未标注字', detail: `第 ${line.index + 1} 句仍有平仄未确认。`, line: line.index });
       }
     });
-    const rhymeCells = template.rhymeLines.map((line) => analysis[line]?.cells.at(-1)).filter(Boolean);
-    const rhymeGroups = new Map<string, string[]>();
-    rhymeCells.forEach((cell) => {
-      if (!cell?.mark.rhyme) {
-        issues.push({ id: uid('issue'), level: 'warning', title: '韵脚缺少韵部', detail: `第 ${(cell?.position ?? 0) + 1} 句末字尚未指定韵部。` });
-        return;
+    const feet = this.rhymeFeet();
+    feet.forEach((foot) => {
+      if (!foot.rhyme) {
+        issues.push({
+          id: uid('issue'),
+          level: 'warning',
+          title: '韵脚缺少韵部',
+          detail: `第 ${foot.line + 1} 句韵脚“${foot.char}”尚未填写韵部。`,
+          line: foot.line,
+          position: foot.position,
+        });
       }
-      rhymeGroups.set(cell.mark.rhyme, [...(rhymeGroups.get(cell.mark.rhyme) ?? []), cell.char]);
     });
-    rhymeGroups.forEach((chars, rhyme) => {
-      const duplicate = chars.find((char, index) => chars.indexOf(char) !== index);
-      if (duplicate) issues.push({ id: uid('issue'), level: 'warning', title: '重复用韵', detail: `韵部 ${rhyme} 重复使用末字“${duplicate}”。` });
+    const filled = feet.filter((foot) => foot.rhyme);
+    const groups = [...new Set(filled.map((foot) => foot.rhyme))];
+    if (groups.length > 1) {
+      const breakdown = filled.map((foot) => `第 ${foot.line + 1} 句“${foot.char}”属 ${foot.rhyme}`).join('、');
+      const offender = filled.find((foot) => foot.rhyme !== filled[0].rhyme) ?? filled[0];
+      issues.push({
+        id: uid('issue'),
+        level: 'error',
+        title: '押韵句韵部不一',
+        detail: `押韵句出现 ${groups.length} 个韵部（${groups.join('、')}）：${breakdown}。押韵句须同属一部，请逐句核对落韵。`,
+        line: offender.line,
+        position: offender.position,
+      });
+      filled.forEach((foot) => {
+        issues.push({
+          id: uid('issue'),
+          level: 'warning',
+          title: `落韵核对 · 第 ${foot.line + 1} 句`,
+          detail: `韵脚“${foot.char}”落韵部 ${foot.rhyme}；本首押韵句共出现 ${groups.join('、')} 等 ${groups.length} 个韵部，须统一。`,
+          line: foot.line,
+          position: foot.position,
+        });
+      });
+    }
+    const feetByChar = new Map<string, RhymeFoot[]>();
+    feet.forEach((foot) => {
+      feetByChar.set(foot.char, [...(feetByChar.get(foot.char) ?? []), foot]);
+    });
+    feetByChar.forEach((occurrences, char) => {
+      if (occurrences.length < 2) return;
+      const lines = occurrences.map((foot) => `第 ${foot.line + 1} 句`).join('、');
+      const labels = occurrences.map((foot) => foot.rhyme || '未填').join('、');
+      const anchor = occurrences[occurrences.length - 1];
+      issues.push({
+        id: uid('issue'),
+        level: 'warning',
+        title: '重复用韵',
+        detail: `“${char}”在${lines}重复作韵脚（韵部依次标为 ${labels}）；同一个字重复为韵，不因韵部标签不同而豁免。`,
+        line: anchor.line,
+        position: anchor.position,
+      });
     });
     if (version.antithesisPairs.length === 0) {
       issues.push({ id: 'antithesis-empty', level: 'info', title: '尚未标记对仗', detail: '可在检视器中把两句建立对仗关系。' });
@@ -389,13 +443,86 @@ export class PoetryStoreService {
   }
 
   exportProofreadCopy(): string {
+    const workspace = this.workspace();
     const active = this.activeVersion();
-    const lines = this.analysis().map((line) => {
-      const tags = line.cells.map((cell) => `${cell.char}${cell.actual === '?' ? '□' : `(${cell.actual})`}`).join(' ');
-      return `第 ${line.index + 1} 句：${tags}`;
+    const template = this.template();
+    const cellText = (value: string): string => {
+      const cleaned = value.replace(/\|/g, '\\|').replace(/\s*\n\s*/g, '<br>').trim();
+      return cleaned || '—';
+    };
+    const toneLabel = (tone: Tone): string => (tone === '?' ? '待定' : tone);
+
+    const header = [
+      `# ${workspace.title} · 格律校对稿`,
+      '',
+      `- 底本：${active.name}`,
+      `- 出处：${active.source || '未填'}`,
+      `- 作者：${workspace.author}`,
+      `- 格律模板：${template.name}（${template.summary}）`,
+      `- 导出时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`,
+    ];
+
+    const annotation: string[] = ['## 一、逐字标注'];
+    this.analysis().forEach((line) => {
+      const isRhymeLine = template.rhymeLines.includes(line.index);
+      annotation.push(
+        '',
+        `### 第 ${line.index + 1} 句${isRhymeLine ? '（押韵句）' : ''}`,
+        '',
+        `> ${this.lines()[line.index] ?? ''}`,
+        '',
+        '| 位 | 字 | 平仄 | 应合 | 校勘状态 | 韵组 | 停顿 | 依据 | 批注 |',
+        '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+        ...line.cells.map(
+          (cell) =>
+            `| ${cell.position + 1} | ${cell.char} | ${toneLabel(cell.actual)} | ${cell.expected} | ${cellText(cell.message)} | ${cellText(cell.mark.rhyme)} | ${cell.mark.pauseAfter ? '顿' : '—'} | ${cellText(cell.mark.basis)} | ${cellText(cell.mark.note)} |`,
+        ),
+      );
     });
-    const notes = this.issues().map((issue) => `[${issue.level.toUpperCase()}] ${issue.title}：${issue.detail}`);
-    return [`# ${this.workspace().title} · 格律校对稿`, '', `底本：${active.name}`, `出处：${active.source}`, '', '## 字音标注', ...lines, '', '## 检查记录', ...notes].join('\n');
+
+    const rhymeSection: string[] = ['## 二、韵脚落韵'];
+    const feet = this.rhymeFeet();
+    if (feet.length) {
+      rhymeSection.push(
+        '',
+        '| 押韵句 | 韵脚 | 韵部 |',
+        '| --- | --- | --- |',
+        ...feet.map((foot) => `| 第 ${foot.line + 1} 句 | ${foot.char} | ${foot.rhyme || '（未填）'} |`),
+      );
+    } else {
+      rhymeSection.push('', '当前模板未设押韵句。');
+    }
+
+    const antithesisSection: string[] = ['## 三、对仗关系'];
+    if (active.antithesisPairs.length) {
+      active.antithesisPairs.forEach((pair, index) => {
+        antithesisSection.push(
+          '',
+          `${index + 1}. 第 ${pair.leftLine + 1} 句 ↔ 第 ${pair.rightLine + 1} 句：${pair.note || '（未填写说明）'}`,
+          `   - 上句：${this.lines()[pair.leftLine] ?? '（缺）'}`,
+          `   - 下句：${this.lines()[pair.rightLine] ?? '（缺）'}`,
+        );
+      });
+    } else {
+      antithesisSection.push('', '未建立对仗关系。');
+    }
+
+    const levelLabel: Record<PoemIssue['level'], string> = { error: '出律', warning: '待核', info: '提示' };
+    const conclusions = this.issues().map((issue) => `- 【${levelLabel[issue.level]}】${issue.title}：${issue.detail}`);
+
+    return [
+      ...header,
+      '',
+      ...annotation,
+      '',
+      ...rhymeSection,
+      '',
+      ...antithesisSection,
+      '',
+      '## 四、检查结论',
+      '',
+      ...conclusions,
+    ].join('\n');
   }
 
   downloadProofreadCopy(): void {

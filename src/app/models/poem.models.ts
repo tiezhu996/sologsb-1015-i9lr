@@ -72,6 +72,13 @@ export interface PoemIssue {
   position?: number;
 }
 
+export interface RhymeFoot {
+  line: number;
+  position: number;
+  char: string;
+  rhyme: string;
+}
+
 export interface CharDiff {
   index: number;
   left: string;
