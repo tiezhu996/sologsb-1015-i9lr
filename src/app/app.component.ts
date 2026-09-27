@@ -56,6 +56,39 @@ export class AppComponent {
     return Math.round((cells.filter((cell) => cell.actual !== '?').length / cells.length) * 100);
   }
 
+  isOffRhyme(line: number, position: number): boolean {
+    return this.store.rhymeReport().offRhymes.some((foot) => foot.line === line && foot.position === position);
+  }
+
+  isRepeatRhyme(line: number, position: number): boolean {
+    return this.store.rhymeReport().repeatedChars.some((entry) => entry.feet.some((foot) => foot.line === line && foot.position === position));
+  }
+
+  isFocused(line: number, position: number): boolean {
+    const focused = this.store.focusedCell();
+    return focused?.line === line && focused?.position === position;
+  }
+
+  rhymeGroupOf(line: number): string {
+    return this.store.rhymeReport().feet.find((foot) => foot.line === line)?.group ?? '';
+  }
+
+  rhymeTagColor(line: number): string {
+    const report = this.store.rhymeReport();
+    const foot = report.feet.find((item) => item.line === line);
+    if (!foot || !foot.group) return 'warning';
+    if (report.mixed && foot.group !== report.mainGroup) return 'error';
+    return 'green';
+  }
+
+  get offRhymeLinesText(): string {
+    return this.store.rhymeReport().offRhymes.map((foot) => foot.line + 1).join('、');
+  }
+
+  get missingRhymeLinesText(): string {
+    return this.store.rhymeReport().missing.map((foot) => foot.line + 1).join('、');
+  }
+
   setTone(tone: '平' | '仄' | '中' | '?'): void {
     this.store.setMark({ tone });
   }

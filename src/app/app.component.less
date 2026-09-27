@@ -149,7 +149,21 @@ kbd { display: inline-grid; min-width: 21px; height: 21px; padding: 0 5px; place
 .hanzi { display: block; margin: 6px 0 4px; font: 27px/1 "Songti SC", "STSong", serif; }
 .mark-row { display: flex; height: 14px; align-items: center; justify-content: center; gap: 3px; }
 .mark-row em { padding: 1px 4px; border-radius: 5px; color: #1f654f; background: #dcefe5; font-size: 8px; font-style: normal; }
+.mark-row em.off-group { color: #8a2f28; background: #f6d9d5; }
 .mark-row i { color: #9b613c; font-size: 9px; font-style: normal; }
+.mark-row i.rhyme-flag { padding: 0 3px; border-radius: 4px; color: #fff; background: #bd4a42; font-size: 8px; }
+.mark-row i.rhyme-flag.repeat { background: #b07a2a; }
+.meter-character.is-off-rhyme { border-color: #bd4a42; box-shadow: 0 0 0 2px rgba(189, 74, 66, .18); }
+.meter-character.is-repeat-rhyme:not(.is-off-rhyme) { border-color: #c98f2e; box-shadow: 0 0 0 2px rgba(201, 143, 46, .18); }
+.meter-character.is-focused {
+  animation: focus-pulse 1.1s ease-in-out 3;
+  border-color: #2f6656;
+  box-shadow: 0 0 0 3px rgba(47, 102, 86, .35), 0 6px 16px rgba(47, 102, 86, .22);
+}
+@keyframes focus-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(47, 102, 86, .35); }
+  50% { box-shadow: 0 0 0 7px rgba(47, 102, 86, .12); }
+}
 .meter-footer { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; color: #858075; background: #f7f5ef; font-size: 10px; }
 
 .inspector-panel > *:not(.section-title) { margin-left: 14px; margin-right: 14px; }
@@ -163,6 +177,32 @@ kbd { display: inline-grid; min-width: 21px; height: 21px; padding: 0 5px; place
 .switch-line { display: flex; align-items: center; gap: 8px; color: #747068; font-size: 11px; }
 
 .audit-layout { display: grid; grid-template-columns: minmax(560px, 1.15fr) minmax(380px, .85fr); gap: 12px; align-items: start; }
+.rhyme-summary { padding: 13px 16px; border-bottom: 1px solid #e9e5dc; background: #f6f5ef; }
+.rhyme-feet { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+.rhyme-foot {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  column-gap: 7px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid #d9d4c6;
+  border-radius: 8px;
+  color: #4c4f48;
+  background: #fffdf8;
+  cursor: pointer;
+  transition: .15s ease;
+}
+.rhyme-foot:hover { border-color: #7fa08f; transform: translateY(-1px); }
+.rhyme-foot strong { font-size: 10px; }
+.rhyme-foot .foot-char { font: 700 17px/1.2 "Songti SC", "STSong", serif; }
+.rhyme-foot em { grid-column: 1 / -1; margin-top: 3px; color: #6d7a70; font-size: 9px; font-style: normal; }
+.rhyme-foot.is-missing { border-color: #d8b25a; background: #fdf6e6; }
+.rhyme-foot.is-missing em { color: #8a6a1f; }
+.rhyme-foot.is-off { border-color: #bd4a42; background: #fbeeec; }
+.rhyme-foot.is-off em { color: #8a2f28; }
+.rhyme-foot.is-repeat:not(.is-off) { border-color: #c98f2e; }
+.rhyme-verdict { margin-top: 10px; color: #6d675c; font-size: 11px; line-height: 1.7; }
 .issue-list { padding: 9px; display: grid; gap: 7px; }
 .issue-row {
   display: grid;
@@ -179,6 +219,8 @@ kbd { display: inline-grid; min-width: 21px; height: 21px; padding: 0 5px; place
   cursor: pointer;
 }
 .issue-row:hover { filter: brightness(.98); }
+.issue-row.no-target { cursor: default; }
+.issue-row.no-target:hover { filter: none; }
 .issue-row.level-error { color: #883932; background: #fbefed; }
 .issue-row.level-warning { color: #7b581d; background: #fbf5e7; }
 .issue-row.level-info { color: #2f6656; background: #eff7f3; }
